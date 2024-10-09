@@ -1,3 +1,4 @@
+import os
 import tkinter as tk
 from tkinter import ttk
 import firebase_admin
@@ -11,7 +12,7 @@ def export_data():
 
 def perform_export():
     try:
-        cred = credentials.Certificate('firebase_keys.json')
+        cred = credentials.Certificate('private/firebase_keys.json')
         if not firebase_admin._apps:
             firebase_admin.initialize_app(cred)
 
@@ -67,7 +68,6 @@ def perform_export():
                 large_subscriptions.append(doc_id)
                 large_subscription_statuses.append(site_status)
 
-        # Procesar y preparar los datos para cada tipo de suscripción
         data_no_subscriptions = {
             'No Subscriptions': no_subscriptions,
             'Site Status': no_subscription_statuses,
@@ -88,7 +88,6 @@ def perform_export():
         filename = f'site_subscriptions_report_{timestamp}.xlsx'
 
         with pd.ExcelWriter(filename, engine='openpyxl') as writer:
-            # Asegurarse de que al menos una hoja tenga datos
             if no_subscriptions:
                 pd.DataFrame(data_no_subscriptions).to_excel(writer, sheet_name='No Subscriptions', index=False)
             if small_subscriptions:
@@ -111,7 +110,6 @@ def create_gui():
 
     ttk.Label(root, text="Press the button to export data to Excel").grid(row=0, column=0, padx=10, pady=10)
 
-    # Definir el estilo del botón
     style = ttk.Style()
     style.configure('Export.TButton', background='red', foreground='white')
 
