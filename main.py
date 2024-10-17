@@ -23,18 +23,21 @@ def perform_export():
         medium_subscriptions = []
         large_subscriptions = []
         extra_large_subscriptions = []
+        very_small_subscriptions = []
 
         no_subscription_statuses = []
         small_subscription_statuses = []
         medium_subscription_statuses = []
         large_subscription_statuses = []
         extra_large_subscription_statuses = []
+        very_small_subscription_statuses = []
 
         no_subscription_counts = []
         small_subscription_counts = []
         medium_subscription_counts = []
         large_subscription_counts = []
         extra_large_subscription_counts = []
+        very_small_subscription_counts = []
 
         doc_ref = db.collection('site_configs')
         docs = doc_ref.stream()
@@ -49,7 +52,6 @@ def perform_export():
             if 'settings' not in doc_data:
                 continue
 
-            # Obtener el estado del sitio
             id_required = doc_data['settings'].get('id_required', False)
             index_index_in_search_engines = doc_data['settings'].get('index_index_in_search_engines', False)
             notifications = doc_data['settings'].get('notifications', {})
@@ -61,15 +63,17 @@ def perform_export():
 
             site_status = "Active" if is_active else "Not Active"
 
-            # Contar las membresías
             memberships = db.collection('memberships').where('site', '==', doc_id).stream()
             membership_count = sum(1 for _ in memberships)
 
-            # Clasificar las tiendas según el número de suscripciones
             if membership_count == 0:
                 no_subscriptions.append(doc_id)
                 no_subscription_statuses.append(site_status)
                 no_subscription_counts.append(membership_count)
+            elif 1 <= membership_count < 10:
+                very_small_subscriptions.append(doc_id)
+                very_small_subscription_statuses.append(site_status)
+                very_small_subscription_counts.append(membership_count)
             elif 10 <= membership_count < 100:
                 small_subscriptions.append(doc_id)
                 small_subscription_statuses.append(site_status)
@@ -87,11 +91,15 @@ def perform_export():
                 extra_large_subscription_statuses.append(site_status)
                 extra_large_subscription_counts.append(membership_count)
 
-        # Crear datos para el archivo
         data_no_subscriptions = {
             'No Subscriptions': no_subscriptions,
             'Site Status': no_subscription_statuses,
             'Subscription Count': no_subscription_counts,
+        }
+        data_very_small_subscriptions = {
+            '1-10 Subscriptions': very_small_subscriptions,
+            'Site Status': very_small_subscription_statuses,
+            'Subscription Count': very_small_subscription_counts,
         }
         data_small_subscriptions = {
             '10-100 Subscriptions': small_subscriptions,
@@ -114,13 +122,14 @@ def perform_export():
             'Subscription Count': extra_large_subscription_counts,
         }
 
-        # Guardar el archivo
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f'site_subscriptions_report_{timestamp}.xlsx'
 
         with pd.ExcelWriter(filename, engine='openpyxl') as writer:
             if no_subscriptions:
                 pd.DataFrame(data_no_subscriptions).to_excel(writer, sheet_name='No Subscriptions', index=False)
+            if very_small_subscriptions:
+                pd.DataFrame(data_very_small_subscriptions).to_excel(writer, sheet_name='1-10 Subscriptions', index=False)
             if small_subscriptions:
                 pd.DataFrame(data_small_subscriptions).to_excel(writer, sheet_name='10-100 Subscriptions', index=False)
             if medium_subscriptions:
