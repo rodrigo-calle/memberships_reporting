@@ -20,10 +20,21 @@ def perform_export():
 
         no_subscriptions = []
         small_subscriptions = []
+        medium_subscriptions = []
         large_subscriptions = []
+        extra_large_subscriptions = []
+
         no_subscription_statuses = []
         small_subscription_statuses = []
+        medium_subscription_statuses = []
         large_subscription_statuses = []
+        extra_large_subscription_statuses = []
+
+        no_subscription_counts = []
+        small_subscription_counts = []
+        medium_subscription_counts = []
+        large_subscription_counts = []
+        extra_large_subscription_counts = []
 
         doc_ref = db.collection('site_configs')
         docs = doc_ref.stream()
@@ -33,54 +44,74 @@ def perform_export():
             doc_data = doc.to_dict()
 
             if not doc_data:
-                print(doc_id)
                 continue
 
             if 'settings' not in doc_data:
-                print('Site settings not found: ', doc_id)
                 continue
 
+            # Obtener el estado del sitio
             id_required = doc_data['settings'].get('id_required', False)
             index_index_in_search_engines = doc_data['settings'].get('index_index_in_search_engines', False)
-
             notifications = doc_data['settings'].get('notifications', {})
-            cancelled_membership = notifications.get('cancelled_memberships', False)
-            new_subscription = notifications.get('new_memberships', False)
-            transaction_declined = notifications.get('transaction_declined', False)
-            three_days_before_renewal = doc_data['settings'].get('user_notifications', {}).get('three_days_before_renewal', False)
-
             is_active = (id_required or index_index_in_search_engines or
-                         cancelled_membership or new_subscription or
-                         transaction_declined or three_days_before_renewal)
+                         notifications.get('cancelled_memberships', False) or
+                         notifications.get('new_memberships', False) or
+                         notifications.get('transaction_declined', False) or
+                         doc_data['settings'].get('user_notifications', {}).get('three_days_before_renewal', False))
 
             site_status = "Active" if is_active else "Not Active"
 
+            # Contar las membresías
             memberships = db.collection('memberships').where('site', '==', doc_id).stream()
             membership_count = sum(1 for _ in memberships)
 
+            # Clasificar las tiendas según el número de suscripciones
             if membership_count == 0:
                 no_subscriptions.append(doc_id)
                 no_subscription_statuses.append(site_status)
-            elif 1 <= membership_count <= 10:
+                no_subscription_counts.append(membership_count)
+            elif 10 <= membership_count < 100:
                 small_subscriptions.append(doc_id)
                 small_subscription_statuses.append(site_status)
-            else:
+                small_subscription_counts.append(membership_count)
+            elif 100 <= membership_count < 500:
+                medium_subscriptions.append(doc_id)
+                medium_subscription_statuses.append(site_status)
+                medium_subscription_counts.append(membership_count)
+            elif 500 <= membership_count < 1000:
                 large_subscriptions.append(doc_id)
                 large_subscription_statuses.append(site_status)
+                large_subscription_counts.append(membership_count)
+            elif membership_count >= 1000:
+                extra_large_subscriptions.append(doc_id)
+                extra_large_subscription_statuses.append(site_status)
+                extra_large_subscription_counts.append(membership_count)
 
+        # Crear datos para el archivo
         data_no_subscriptions = {
             'No Subscriptions': no_subscriptions,
             'Site Status': no_subscription_statuses,
+            'Subscription Count': no_subscription_counts,
         }
-
         data_small_subscriptions = {
-            '1-10 Subscriptions': small_subscriptions,
+            '10-100 Subscriptions': small_subscriptions,
             'Site Status': small_subscription_statuses,
+            'Subscription Count': small_subscription_counts,
         }
-
+        data_medium_subscriptions = {
+            '100-500 Subscriptions': medium_subscriptions,
+            'Site Status': medium_subscription_statuses,
+            'Subscription Count': medium_subscription_counts,
+        }
         data_large_subscriptions = {
-            'More than 10 Subscriptions': large_subscriptions,
+            '500-1000 Subscriptions': large_subscriptions,
             'Site Status': large_subscription_statuses,
+            'Subscription Count': large_subscription_counts,
+        }
+        data_extra_large_subscriptions = {
+            'More than 1000 Subscriptions': extra_large_subscriptions,
+            'Site Status': extra_large_subscription_statuses,
+            'Subscription Count': extra_large_subscription_counts,
         }
 
         # Guardar el archivo
@@ -91,9 +122,13 @@ def perform_export():
             if no_subscriptions:
                 pd.DataFrame(data_no_subscriptions).to_excel(writer, sheet_name='No Subscriptions', index=False)
             if small_subscriptions:
-                pd.DataFrame(data_small_subscriptions).to_excel(writer, sheet_name='1-10 Subscriptions', index=False)
+                pd.DataFrame(data_small_subscriptions).to_excel(writer, sheet_name='10-100 Subscriptions', index=False)
+            if medium_subscriptions:
+                pd.DataFrame(data_medium_subscriptions).to_excel(writer, sheet_name='100-500 Subscriptions', index=False)
             if large_subscriptions:
-                pd.DataFrame(data_large_subscriptions).to_excel(writer, sheet_name='More than 10 Subscriptions', index=False)
+                pd.DataFrame(data_large_subscriptions).to_excel(writer, sheet_name='500-1000 Subscriptions', index=False)
+            if extra_large_subscriptions:
+                pd.DataFrame(data_extra_large_subscriptions).to_excel(writer, sheet_name='More than 1000 Subscriptions', index=False)
 
         success_message.set(f"Data exported successfully to {filename}!")
 
